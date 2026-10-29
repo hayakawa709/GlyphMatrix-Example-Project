@@ -1,4 +1,4 @@
-pluginManagement {
+﻿pluginManagement {
     repositories {
         google {
             content {
@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Nothing Android SDK Demo"
+rootProject.name = "Kemono Friends Glyph Toy"
 include(":app")
  

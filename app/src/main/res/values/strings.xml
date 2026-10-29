@@ -1,12 +1,8 @@
-<resources>
-    <string name="app_name">Nothing Android SDK Demo</string>
-
-    <string name="toy_name_basic">Basic Demo</string>
-    <string name="toy_summary_basic">Displays a basic image on the matrix.</string>
-
-    <string name="toy_name_animation">Animation Demo</string>
-    <string name="toy_summary_animation">Animates the glyph matrix.</string>
-
-    <string name="toy_name_glyph_button">Glyph Button Demo</string>
-    <string name="toy_summary_glyph_button">Activates the glyph matrix when the glyph button is pressed.</string>
+﻿<resources>
+    <string name="app_name">Kemono Friends Glyph Toy</string>
+    <string name="toy_name_kemono_friends_logo">Kemono Friends Logo</string>
+    <string name="toy_summary_kemono_friends_logo">Shows the Kemono Friends logo on the Glyph Matrix.</string>
+    <string name="gps_service_channel_name">GPS speedometer</string>
+    <string name="gps_service_notification_title">GPS speedometer is ready</string>
+    <string name="gps_service_notification_text">Keeps GPS speed available for the Glyph Toy.</string>
 </resources>
