@@ -1,6 +1,8 @@
 ﻿package com.kemonofriends.glyphtoy.service
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
@@ -19,6 +21,8 @@ class KemonoFriendsLogoGlyphToyService : GlyphMatrixToyService("KemonoFriendsLog
 
     private val speedometerRenderer by lazy { SpeedometerFrameRenderer(this) }
     private var isSpeedometerMode = false
+    private var nextSpeedSource = SpeedSource.SIMULATED
+    private var activeSpeedSource: SpeedSource? = null
     private val speedSimulationHandler = Handler(Looper.getMainLooper())
     private var isSpeedSimulationRunning = false
     private var speedSimulationStartMs = 0L
@@ -35,6 +39,14 @@ class KemonoFriendsLogoGlyphToyService : GlyphMatrixToyService("KemonoFriendsLog
             speedSimulationHandler.postDelayed(this, SPEED_SIMULATION_FRAME_INTERVAL_MS)
         }
     }
+    private val gpsSpeedListener: (Float) -> Unit = { speedKmh ->
+        if (isSpeedometerMode && activeSpeedSource == SpeedSource.GPS) {
+            glyphMatrixManager?.let { manager ->
+                showSpeedometer(manager, speedKmh)
+            }
+        }
+    }
+
     override fun performOnServiceConnected(
         context: Context,
         glyphMatrixManager: GlyphMatrixManager
@@ -44,6 +56,8 @@ class KemonoFriendsLogoGlyphToyService : GlyphMatrixToyService("KemonoFriendsLog
 
     override fun performOnServiceDisconnected(context: Context) {
         stopSpeedSimulation()
+        stopGpsSpeedUpdates()
+        activeSpeedSource = null
         isSpeedometerMode = false
         Log.d(TAG, "Glyph Matrix service disconnected")
     }
@@ -80,13 +94,26 @@ class KemonoFriendsLogoGlyphToyService : GlyphMatrixToyService("KemonoFriendsLog
 
     private fun showSpeedometerMode() {
         isSpeedometerMode = true
+        activeSpeedSource = nextSpeedSource
+        nextSpeedSource = if (nextSpeedSource == SpeedSource.SIMULATED) {
+            SpeedSource.GPS
+        } else {
+            SpeedSource.SIMULATED
+        }
+        Log.d(TAG, "Speedometer source: $activeSpeedSource")
         glyphMatrixManager?.let(::showSpeedometerPlaceholder)
-        startSpeedSimulation()
+        when (activeSpeedSource) {
+            SpeedSource.SIMULATED -> startSpeedSimulation()
+            SpeedSource.GPS -> startGpsSpeedUpdates()
+            null -> Unit
+        }
     }
 
     private fun showLogoMode() {
         isSpeedometerMode = false
         stopSpeedSimulation()
+        stopGpsSpeedUpdates()
+        activeSpeedSource = null
         glyphMatrixManager?.let(::showLogo)
     }
 
@@ -118,6 +145,23 @@ class KemonoFriendsLogoGlyphToyService : GlyphMatrixToyService("KemonoFriendsLog
         speedSimulationHandler.removeCallbacks(speedSimulationRunnable)
     }
 
+    private fun startGpsSpeedUpdates() {
+        if (!hasFineLocationPermission()) return
+        GpsSpeedStore.clear()
+        GpsSpeedStore.subscribe(gpsSpeedListener)
+        GpsSpeedForegroundService.startTracking(this)
+    }
+
+    private fun stopGpsSpeedUpdates() {
+        GpsSpeedStore.unsubscribe(gpsSpeedListener)
+        GpsSpeedForegroundService.stopTracking(this)
+    }
+
+    private fun hasFineLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
     private fun showBitmap(glyphMatrixManager: GlyphMatrixManager, bitmap: Bitmap) {
         val matrixObject = GlyphMatrixObject.Builder()
             .setImageSource(bitmap)
@@ -136,6 +180,11 @@ class KemonoFriendsLogoGlyphToyService : GlyphMatrixToyService("KemonoFriendsLog
         private const val SPEED_SIMULATION_CYCLE_MS = 10_000L
         private const val SPEED_SIMULATION_FRAME_INTERVAL_MS = 100L
         private const val SPEED_SIMULATION_MAX_KMH = 180f
+    }
+
+    private enum class SpeedSource {
+        SIMULATED,
+        GPS
     }
 }
 
