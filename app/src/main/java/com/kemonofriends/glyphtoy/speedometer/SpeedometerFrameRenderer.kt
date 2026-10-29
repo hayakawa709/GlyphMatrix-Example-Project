@@ -22,8 +22,8 @@ class SpeedometerFrameRenderer(context: Context) {
 
     fun render(speedKmh: Float): Bitmap {
         val pixels = PixelCanvas(baseBitmap)
-        pixels.drawNeedle(speedKmh)
-        pixels.drawSpeedDigits(speedKmh)
+        val digitClearance = pixels.drawSpeedDigits(speedKmh)
+        pixels.drawNeedle(speedKmh, digitClearance)
         return pixels.toBitmap()
     }
 
@@ -41,23 +41,26 @@ class SpeedometerFrameRenderer(context: Context) {
             }
         }
 
-        fun drawNeedle(speedKmh: Float) {
+        fun drawNeedle(speedKmh: Float, digitClearance: Array<BooleanArray>) {
             val angle = speedToAngleDegrees(speedKmh)
             val tip = pointOnDial(angle, NEEDLE_TIP_RADIUS)
             val start = pointOnDial(angle, NEEDLE_START_RADIUS)
-            drawLine(start.x, start.y, tip.x, tip.y)
+            drawLine(start.x, start.y, tip.x, tip.y, digitClearance)
         }
 
-        fun drawSpeedDigits(speedKmh: Float) {
+        fun drawSpeedDigits(speedKmh: Float): Array<BooleanArray> {
+            val digitClearance = Array(MATRIX_SIZE) { BooleanArray(MATRIX_SIZE) }
             val speed = speedKmh.roundToInt().coerceIn(0, 999)
             val text = speed.toString().padStart(3, '0')
             text.forEachIndexed { index, digit ->
                 drawGlyph(
                     DIGITS[digit] ?: return@forEachIndexed,
                     DIGIT_X[index],
-                    DIGIT_Y
+                    DIGIT_Y,
+                    digitClearance
                 )
             }
+            return digitClearance
         }
 
         fun toBitmap(): Bitmap {
@@ -74,7 +77,8 @@ class SpeedometerFrameRenderer(context: Context) {
         private fun drawGlyph(
             glyph: Array<String>,
             startX: Int,
-            startY: Int
+            startY: Int,
+            digitClearance: Array<BooleanArray>
         ) {
             glyph.forEachIndexed { row, line ->
                 line.forEachIndexed { column, pixel ->
@@ -82,6 +86,19 @@ class SpeedometerFrameRenderer(context: Context) {
                         val x = startX + column
                         val y = startY + row
                         set(x, y)
+                        markDigitClearance(digitClearance, x, y)
+                    }
+                }
+            }
+        }
+
+        private fun markDigitClearance(clearance: Array<BooleanArray>, x: Int, y: Int) {
+            for (offsetY in -1..1) {
+                for (offsetX in -1..1) {
+                    val targetX = x + offsetX
+                    val targetY = y + offsetY
+                    if (targetX in 0 until MATRIX_SIZE && targetY in 0 until MATRIX_SIZE) {
+                        clearance[targetY][targetX] = true
                     }
                 }
             }
@@ -91,7 +108,8 @@ class SpeedometerFrameRenderer(context: Context) {
             startX: Int,
             startY: Int,
             endX: Int,
-            endY: Int
+            endY: Int,
+            digitClearance: Array<BooleanArray>
         ) {
             var x0 = startX
             var y0 = startY
@@ -102,7 +120,7 @@ class SpeedometerFrameRenderer(context: Context) {
             var error = dx + dy
 
             while (true) {
-                set(x0, y0)
+                if (!digitClearance[y0][x0]) set(x0, y0)
                 if (x0 == endX && y0 == endY) break
                 val e2 = 2 * error
                 if (e2 >= dy) {
